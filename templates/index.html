@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Key-Value Store Frontend</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
+  input, button { padding: 8px; margin: 5px 0; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+  th { background-color: #f4f4f4; }
+  #message { margin: 10px 0; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h2>Key-Value Store Frontend</h2>
+
+<div>
+  <label>Key:</label><br />
+  <input type="text" id="keyInput" placeholder="Enter key" /><br />
+  <label>Value:</label><br />
+  <input type="text" id="valueInput" placeholder="Enter value" /><br />
+  <button onclick="storeKeyValue()">Add / Update</button>
+  <button onclick="getValue()">Get Value by Key</button>
+  <button onclick="getAll()">Get All</button>
+</div>
+
+<div id="message"></div>
+
+<table id="kvTable" style="display:none;">
+  <thead><tr><th>Key</th><th>Value</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<script>
+const apiBaseUrl = "{{ backend_api_url }}";  // Flask injects backend_api_url here
+
+function showMessage(text, error = false) {
+  const msg = document.getElementById('message');
+  msg.style.color = error ? 'red' : 'green';
+  msg.textContent = text;
+}
+
+async function storeKeyValue() {
+  const key = document.getElementById('keyInput').value.trim();
+  const value = document.getElementById('valueInput').value.trim();
+  if (!key || !value) {
+    showMessage('Please enter both key and value.', true);
+    return;
+  }
+
+  try {
+    const res = await fetch(apiBaseUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key, value})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error storing key-value');
+    showMessage(`Key "${key}" stored successfully.`);
+    getAll();  // refresh table
+  } catch (e) {
+    showMessage(e.message, true);
+  }
+}
+
+async function getValue() {
+  const key = document.getElementById('keyInput').value.trim();
+  if (!key) {
+    showMessage('Please enter a key to get its value.', true);
+    return;
+  }
+
+  try {
+    const res = await fetch(`${apiBaseUrl}/${encodeURIComponent(key)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error fetching value');
+    document.getElementById('valueInput').value = data.value;
+    showMessage(`Value for "${key}" retrieved.`);
+  } catch (e) {
+    showMessage(e.message, true);
+  }
+}
+
+async function getAll() {
+  try {
+    const res = await fetch(apiBaseUrl);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error fetching all data');
+
+    const table = document.getElementById('kvTable');
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    if (data.length === 0) {
+      table.style.display = 'none';
+      showMessage('No key-value pairs found.');
+      return;
+    }
+    data.forEach(({key, value}) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>${key}</td><td>${value}</td>`;
+      tbody.appendChild(row);
+    });
+    table.style.display = 'table';
+    showMessage(`Fetched ${data.length} key-value pairs.`);
+  } catch (e) {
+    showMessage(e.message, true);
+  }
+}
+
+// Load all key-values on page load
+window.onload = getAll;
+</script>
+
+</body>
+</html>
