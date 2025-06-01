@@ -10,6 +10,7 @@ with open('env.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
 backend_api_url = config['backend_api_url']
+port = config['port']
 
 # Check backend API connectivity before starting server
 def check_backend_api(url):
@@ -29,4 +30,4 @@ def index():
 
 if __name__ == '__main__':
     check_backend_api(backend_api_url)  # run connectivity check before app.run()
-    app.run(port=5000)
+    app.run(port=port)
