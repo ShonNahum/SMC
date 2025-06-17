@@ -21,7 +21,7 @@ def check_backend_api(url):
         print(f"Connected successfully to backend API at {url}")
     except requests.RequestException as e:
         print(f"Failed to connect to backend API at {url}: {e}")
-        print("test")
+        print("test ")
         sys.exit(1)  # Exit program with error
 
 
