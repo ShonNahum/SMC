@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import yaml
 import logging
 from logging_loki.handlers import LokiHandler
 import requests
 import sys
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
 
@@ -78,6 +79,10 @@ def get_all():
     except Exception as e:
         logger.error(f"❌ Error getting all keys: {e}")
         return jsonify({"error": "Backend error"}), 500
+
+@app.route("/metrics", methods=['GET'])
+def metrics():
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
 def check_backend():
     logger.info(f"🔄 Checking backend API at {backend_api_url}")
