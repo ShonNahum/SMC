@@ -1,13 +1,9 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, request, jsonify
 import yaml
+import logging
+from logging_loki.handlers import LokiHandler
 import requests
 import sys
-
-# OpenTelemetry packages
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry import metrics
-from prometheus_client import generate_latest
 
 app = Flask(__name__)
 
@@ -16,43 +12,84 @@ with open('env.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
 backend_api_url = config['backend_api_url']
-port = config['port']
+port = int(config['port'])
+loki_url = config['loki_url']
 
-# ✅ Setup OpenTelemetry metrics
-reader = PrometheusMetricReader()
-provider = MeterProvider(metric_readers=[reader])
-metrics.set_meter_provider(provider)
+# Set up logging
+logger = logging.getLogger("flask-app")
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
-meter = metrics.get_meter(__name__)
-ping_counter = meter.create_counter(
-    name="backend_ping_attempts",
-    unit="1",
-    description="Number of backend API connectivity checks"
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+# Loki handler
+loki_handler = LokiHandler(
+    url=loki_url,
+    tags={"app": "smc"},
+    version="1"
 )
+loki_handler.setFormatter(formatter)
+logger.addHandler(loki_handler)
 
-# Check backend API connectivity before starting server
-def check_backend_api(url):
-    try:
-        r = requests.get(url, timeout=3)
-        r.raise_for_status()
-        ping_counter.add(1, {"status": "success"})
-        print(f"Connected successfully to backend API at {url}")
-    except requests.RequestException as e:
-        ping_counter.add(1, {"status": "failure"})
-        print(f"Failed to connect to backend API at {url}: {e}")
-        sys.exit(1)
-
+# Console handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 @app.route('/')
 def index():
-    return render_template('index.html', backend_api_url=backend_api_url)
+    return render_template("index.html")
 
-# ✅ Expose /metrics endpoint
-@app.route('/metrics')
-def metrics_endpoint():
-    return Response(generate_latest(), mimetype="text/plain")
+@app.route('/store', methods=['POST'])
+def store_key_value():
+    data = request.get_json()
+    if not data or 'key' not in data or 'value' not in data:
+        logger.warning("❌ Invalid POST: missing key or value")
+        return jsonify({"error": "Missing key or value"}), 400
 
+    key = data['key']
+    value = data['value']
+    logger.info(f"📝 Storing: key='{key}', value='{value}'")
+
+    try:
+        res = requests.post(backend_api_url, json={"key": key, "value": value})
+        res.raise_for_status()
+        return jsonify(res.json()), res.status_code
+    except Exception as e:
+        logger.error(f"❌ Error forwarding to backend: {e}")
+        return jsonify({"error": "Backend error"}), 500
+
+@app.route('/store/<key>', methods=['GET'])
+def get_value(key):
+    logger.info(f"🔍 Fetching key='{key}'")
+    try:
+        res = requests.get(f"{backend_api_url}/{key}")
+        return jsonify(res.json()), res.status_code
+    except Exception as e:
+        logger.error(f"❌ Error getting key='{key}': {e}")
+        return jsonify({"error": "Backend error"}), 500
+
+@app.route('/store', methods=['GET'])
+def get_all():
+    logger.info("📦 Getting all key-value pairs")
+    try:
+        res = requests.get(backend_api_url)
+        return jsonify(res.json()), res.status_code
+    except Exception as e:
+        logger.error(f"❌ Error getting all keys: {e}")
+        return jsonify({"error": "Backend error"}), 500
+
+def check_backend():
+    logger.info(f"🔄 Checking backend API at {backend_api_url}")
+    try:
+        res = requests.get(backend_api_url, timeout=3)
+        res.raise_for_status()
+        logger.info("✅ Backend is reachable.")
+    except Exception as e:
+        logger.critical(f"❌ Cannot reach backend: {e}")
+        sys.exit(1)
 
 if __name__ == '__main__':
-    check_backend_api(backend_api_url)
-    app.run(port=port)
+    check_backend()
+    logger.info(f"🚀 Starting Flask app on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=True)

@@ -1,118 +1,182 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Key-Value Store Frontend</title>
-<style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
-  input, button { padding: 8px; margin: 5px 0; }
-  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-  th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
-  th { background-color: #f4f4f4; }
-  #message { margin: 10px 0; font-weight: bold; }
-</style>
+  <meta charset="UTF-8" />
+  <title>Key-Value Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f9f9f9;
+      max-width: 700px;
+      margin: 30px auto;
+      padding: 20px;
+      border-radius: 10px;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h2 { text-align: center; color: #333; }
+    .status-box {
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+    .status-up {
+      background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;
+    }
+    .status-down {
+      background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;
+    }
+    label { font-weight: bold; display: block; margin-top: 10px; }
+    input {
+      width: 100%; padding: 8px; margin-top: 4px;
+      margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc;
+    }
+    button {
+      padding: 10px 15px; margin-right: 10px;
+      background-color: #007bff; color: white;
+      border-radius: 4px; border: none; cursor: pointer;
+    }
+    button:hover { background-color: #0056b3; }
+    #message { margin: 10px 0; font-weight: bold; }
+    table {
+      width: 100%; border-collapse: collapse; margin-top: 20px;
+    }
+    th, td {
+      padding: 10px; border: 1px solid #ddd; text-align: left;
+    }
+    th { background-color: #f1f1f1; }
+  </style>
 </head>
 <body>
 
-<h2>Key-Value Store Frontend</h2>
+  <h2>📦 Key-Value Store Frontend</h2>
 
-<div>
-  <label>Key:</label><br />
-  <input type="text" id="keyInput" placeholder="Enter key" /><br />
-  <label>Value:</label><br />
-  <input type="text" id="valueInput" placeholder="Enter value" /><br />
-  <button onclick="storeKeyValue()">Add / Update</button>
-  <button onclick="getValue()">Get Value by Key</button>
-  <button onclick="getAll()">Get All</button>
-</div>
+  <div id="backendStatus" class="status-box">Checking backend...</div>
 
-<div id="message"></div>
+  <label>Key:</label>
+  <input type="text" id="keyInput" placeholder="Enter key" />
 
-<table id="kvTable" style="display:none;">
-  <thead><tr><th>Key</th><th>Value</th></tr></thead>
-  <tbody></tbody>
-</table>
+  <label>Value:</label>
+  <input type="text" id="valueInput" placeholder="Enter value" />
 
-<script>
-const apiBaseUrl = "{{ backend_api_url }}";  // Flask injects backend_api_url here
+  <div>
+    <button onclick="storeKeyValue()">Add / Update</button>
+    <button onclick="getValue()">Get Value</button>
+    <button onclick="getAll()">Get All</button>
+  </div>
 
-function showMessage(text, error = false) {
-  const msg = document.getElementById('message');
-  msg.style.color = error ? 'red' : 'green';
-  msg.textContent = text;
-}
+  <div id="message"></div>
 
-async function storeKeyValue() {
-  const key = document.getElementById('keyInput').value.trim();
-  const value = document.getElementById('valueInput').value.trim();
-  if (!key || !value) {
-    showMessage('Please enter both key and value.', true);
-    return;
-  }
+  <table id="kvTable" style="display:none;">
+    <thead><tr><th>Key</th><th>Value</th></tr></thead>
+    <tbody></tbody>
+  </table>
 
-  try {
-    const res = await fetch(apiBaseUrl, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({key, value})
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error storing key-value');
-    showMessage(`Key "${key}" stored successfully.`);
-    getAll();  // refresh table
-  } catch (e) {
-    showMessage(e.message, true);
-  }
-}
+  <script>
+    const apiBaseUrl = "/store";
 
-async function getValue() {
-  const key = document.getElementById('keyInput').value.trim();
-  if (!key) {
-    showMessage('Please enter a key to get its value.', true);
-    return;
-  }
-
-  try {
-    const res = await fetch(`${apiBaseUrl}/${encodeURIComponent(key)}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error fetching value');
-    document.getElementById('valueInput').value = data.value;
-    showMessage(`Value for "${key}" retrieved.`);
-  } catch (e) {
-    showMessage(e.message, true);
-  }
-}
-
-async function getAll() {
-  try {
-    const res = await fetch(apiBaseUrl);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error fetching all data');
-
-    const table = document.getElementById('kvTable');
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    if (data.length === 0) {
-      table.style.display = 'none';
-      showMessage('No key-value pairs found.');
-      return;
+    function showMessage(text, error = false) {
+      const msg = document.getElementById('message');
+      msg.style.color = error ? 'red' : 'green';
+      msg.textContent = text;
     }
-    data.forEach(({key, value}) => {
-      const row = document.createElement('tr');
-      row.innerHTML = `<td>${key}</td><td>${value}</td>`;
-      tbody.appendChild(row);
-    });
-    table.style.display = 'table';
-    showMessage(`Fetched ${data.length} key-value pairs.`);
-  } catch (e) {
-    showMessage(e.message, true);
-  }
-}
 
-// Load all key-values on page load
-window.onload = getAll;
-</script>
+    function clearTable() {
+      const table = document.getElementById('kvTable');
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = '';
+      table.style.display = 'none';
+    }
+
+    async function storeKeyValue() {
+      clearTable();
+      const key = document.getElementById('keyInput').value.trim();
+      const value = document.getElementById('valueInput').value.trim();
+      if (!key || !value) return showMessage('Enter both key and value.', true);
+
+      try {
+        const res = await fetch(apiBaseUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Store failed');
+        showMessage(`Stored "${key}" successfully.`);
+        getAll();
+      } catch (e) {
+        showMessage(e.message, true);
+      }
+    }
+
+    async function getValue() {
+      clearTable();
+      const key = document.getElementById('keyInput').value.trim();
+      if (!key) return showMessage('Enter key to fetch.', true);
+
+      try {
+        const res = await fetch(`${apiBaseUrl}/${encodeURIComponent(key)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Fetch failed');
+
+        const tbody = document.querySelector('#kvTable tbody');
+        tbody.innerHTML = `<tr><td>${key}</td><td>${data.value}</td></tr>`;
+        document.getElementById('kvTable').style.display = 'table';
+        showMessage(`Fetched value for "${key}".`);
+      } catch (e) {
+        showMessage(e.message, true);
+      }
+    }
+
+    async function getAll() {
+      clearTable();
+      try {
+        const res = await fetch(apiBaseUrl);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Fetch failed');
+
+        const tbody = document.querySelector('#kvTable tbody');
+        if (data.length === 0) {
+          showMessage("No key-value pairs found.");
+          return;
+        }
+
+        data.forEach(({ key, value }) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `<td>${key}</td><td>${value}</td>`;
+          tbody.appendChild(row);
+        });
+        document.getElementById('kvTable').style.display = 'table';
+        showMessage(`Fetched ${data.length} items.`);
+      } catch (e) {
+        showMessage(e.message, true);
+      }
+    }
+
+    async function checkBackend() {
+      try {
+        const res = await fetch(apiBaseUrl);
+        const box = document.getElementById('backendStatus');
+        if (res.ok) {
+          box.textContent = '✅ Backend reachable';
+          box.className = 'status-box status-up';
+        } else {
+          throw new Error();
+        }
+      } catch {
+        const box = document.getElementById('backendStatus');
+        box.textContent = '❌ Backend NOT reachable';
+        box.className = 'status-box status-down';
+      }
+    }
+
+    window.onload = () => {
+      checkBackend();
+      getAll();
+    };
+  </script>
 
 </body>
 </html>
