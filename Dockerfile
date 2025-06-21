@@ -20,4 +20,4 @@ COPY --from=builder /app /app
 
 EXPOSE 5051
 
-CMD ["gunicorn", "-b", "0.0.0.0:5051", "main:app"]
+CMD ["python", "main.py"]
